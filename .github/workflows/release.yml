@@ -1,8 +1,9 @@
 name: Build release ZIP
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -14,11 +15,11 @@ jobs:
       - name: Check out release source
         uses: actions/checkout@v4
 
-      - name: Build ZIP and upload to release
+      - name: Build ZIP and publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           $stage = Join-Path $env:RUNNER_TEMP 'SakuFix04-release'
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
@@ -43,4 +44,6 @@ jobs:
           $safeVersion = $env:RELEASE_TAG -replace '[^A-Za-z0-9._-]', '-'
           $archive = Join-Path $env:RUNNER_TEMP "SakuFix04-$safeVersion.zip"
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -Force
+
+          gh release create $env:RELEASE_TAG --title "SakuFix04 $env:RELEASE_TAG" --generate-notes
           gh release upload $env:RELEASE_TAG $archive --clobber

@@ -52,8 +52,9 @@ installation.
 
 ### Install from a GitHub Release
 
-Download and extract the ZIP attached to a GitHub Release. Open PowerShell as an
-administrator in the extracted folder, then run:
+Download and extract `SakuFix04-<version>.zip` from
+[GitHub Releases](https://github.com/miroyong/SakuFix04/releases). Open PowerShell as
+an administrator in the extracted folder, then run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-SakuFix04.ps1 -Install
@@ -79,6 +80,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-SakuFix04.ps1 
 
 Uninstallation removes the scheduled task and installed program files. The diagnostic
 log at `C:\ProgramData\SakuFix04\fix04.log` is retained.
+
+Pushing a version tag such as `v1.0.0` automatically creates a GitHub Release and
+attaches the ZIP package.
 
 ### Manual setup from a source checkout
 
