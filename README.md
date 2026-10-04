@@ -50,7 +50,39 @@ installation.
 
 ## Apply automatically at startup
 
-Register the scheduled task from an elevated PowerShell prompt:
+### Install from a GitHub Release
+
+Download and extract the ZIP attached to a GitHub Release. Open PowerShell as an
+administrator in the extracted folder, then run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-SakuFix04.ps1 -Install
+```
+
+The installer copies the required files to `C:\Program Files\SakuFix04` and registers
+the `SakuFix04-0.4GHz` scheduled task to run at startup as `SYSTEM`. Add `-RunNow` to
+also start the task immediately. The installer does not execute the workaround directly;
+it registers the startup task.
+
+Check the task status and latest log lines:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Program Files\SakuFix04\Install-Fix04Startup.ps1" -Status
+```
+
+To uninstall, run the installer from the extracted ZIP in an elevated PowerShell
+session:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-SakuFix04.ps1 -Uninstall
+```
+
+Uninstallation removes the scheduled task and installed program files. The diagnostic
+log at `C:\ProgramData\SakuFix04\fix04.log` is retained.
+
+### Manual setup from a source checkout
+
+Alternatively, register the scheduled task from an elevated PowerShell prompt:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-Fix04Startup.ps1 -Install

@@ -1,0 +1,46 @@
+name: Build release ZIP
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+
+      - name: Build ZIP and upload to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          $stage = Join-Path $env:RUNNER_TEMP 'SakuFix04-release'
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+
+          $files = @(
+            'Fix-0.4GHz.ps1'
+            'Apply-Fix04-AtBoot.ps1'
+            'Install-Fix04Startup.ps1'
+            'Install-SakuFix04.ps1'
+            'RyzenSMU.bin'
+            'README.md'
+            'LICENSE'
+          )
+
+          foreach ($file in $files) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Required release file not found: $file"
+            }
+            Copy-Item -LiteralPath $file -Destination $stage
+          }
+
+          $safeVersion = $env:RELEASE_TAG -replace '[^A-Za-z0-9._-]', '-'
+          $archive = Join-Path $env:RUNNER_TEMP "SakuFix04-$safeVersion.zip"
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $archive -Force
+          gh release upload $env:RELEASE_TAG $archive --clobber
