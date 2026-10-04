@@ -4,85 +4,88 @@ PowerShell scripts to diagnose and apply the Ryzen mobile CPU workaround for sys
 that get stuck near 0.4 GHz after boot. The workaround communicates with the AMD SMU
 through the PawnIO driver; the Saku Overclock application itself is not required.
 
-> **Aviso:** `Enable` envia comandos ao SMU e altera o estado de clock do processador.
-> Use apenas em hardware compatível e por sua conta e risco. `Disable` desfaz o
-> workaround e pode fazer um processador afetado voltar a ficar limitado a 0,4 GHz.
+> **Warning:** `Enable` sends commands to the SMU and changes the processor's clock
+> state. Use only on compatible hardware and at your own risk. `Disable` undoes the
+> workaround and may cause an affected processor to become stuck at 0.4 GHz again.
 
-## Requisitos
+## Requirements
 
-- Windows com PowerShell.
-- Driver PawnIO instalado.
-- Privilégios de administrador para acessar o driver e gerenciar a tarefa agendada.
-- O arquivo `RyzenSMU.bin`, incluído neste repositório.
+- Windows with PowerShell.
+- The PawnIO driver installed.
+- Administrator privileges to access the driver and manage the scheduled task.
+- The `RyzenSMU.bin` module included in this repository.
 
-O script detecta o codinome do processador e só aplica configurações definidas na
-tabela de plataformas. Para alguns codinomes, a implementação de referência não
-define um workaround.
+The script detects the processor codename and only applies settings defined in its
+platform table. The reference implementation does not define a workaround for every
+codename.
 
-## Uso manual
+## Manual use
 
-Abra o PowerShell como administrador na pasta do projeto.
+Open PowerShell as an administrator in the project directory.
 
-Consultar CPU, codinome, versão da SMU e mailbox sem enviar comandos de alteração:
+Check the CPU, codename, SMU version, and mailbox without sending any modifying
+commands:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Fix-0.4GHz.ps1 -Action Status
 ```
 
-Aplicar o workaround:
+Apply the workaround:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Fix-0.4GHz.ps1 -Action Enable
 ```
 
-O script pede confirmação antes de enviar o comando. Para desfazê-lo explicitamente:
+The script asks for confirmation before sending the command. To explicitly undo the
+workaround:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Fix-0.4GHz.ps1 -Action Disable
 ```
 
-O parâmetro `-ModulePath` permite indicar um `RyzenSMU.bin` ou um `ZenStates-Core.dll`
-alternativo. Sem esse parâmetro, o script procura primeiro o `RyzenSMU.bin` ao lado
-dele e, em seguida, tenta localizar o módulo na instalação do Saku Overclock.
+The `-ModulePath` parameter accepts an alternative `RyzenSMU.bin` or
+`ZenStates-Core.dll`. Without this parameter, the script first looks for
+`RyzenSMU.bin` next to the script, then tries to find the module in the Saku Overclock
+installation.
 
-## Aplicar automaticamente na inicialização
+## Apply automatically at startup
 
-Registre a tarefa agendada como administrador:
+Register the scheduled task from an elevated PowerShell prompt:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-Fix04Startup.ps1 -Install
 ```
 
-A tarefa `SakuFix04-0.4GHz` executa `Apply-Fix04-AtBoot.ps1` na inicialização como
-`SYSTEM`, com privilégios elevados. Ela espera pelo hardware e então aplica o
-workaround incondicionalmente a cada inicialização.
+The `SakuFix04-0.4GHz` task runs `Apply-Fix04-AtBoot.ps1` at startup as `SYSTEM` with
+elevated privileges. It waits for the hardware to become ready and then unconditionally
+applies the workaround on every startup.
 
-Verificar o estado da tarefa e consultar as últimas linhas do log:
+Check the task status and view the latest log lines:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-Fix04Startup.ps1 -Status
 ```
 
-O log fica em `C:\ProgramData\SakuFix04\fix04.log`. Para executar a tarefa também
-imediatamente ao registrá-la, acrescente `-RunNow` ao comando de instalação.
+The log is written to `C:\ProgramData\SakuFix04\fix04.log`. To also run the task
+immediately after registering it, add `-RunNow` to the installation command.
 
-Se a conta `SYSTEM` não conseguir abrir o dispositivo PawnIO, registre uma tarefa
-executada no logon do usuário atual:
+If the `SYSTEM` account cannot open the PawnIO device, register a task that runs when
+the current user logs on instead:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-Fix04Startup.ps1 -Install -AsUser
 ```
 
-Remover a tarefa agendada:
+Remove the scheduled task:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-Fix04Startup.ps1 -Uninstall
 ```
 
-## Origem do módulo
+## Module source
 
-`RyzenSMU.bin` é o módulo PawnIO do projeto
-[ZenStates-Core](https://github.com/irusanov/ZenStates-Core), distribuído aqui com a
-licença GPL-3.0 incluída em [`LICENSE`](./LICENSE). O arquivo corresponde à versão
-do repositório upstream no commit
+`RyzenSMU.bin` is the PawnIO module from the
+[ZenStates-Core](https://github.com/irusanov/ZenStates-Core) project, distributed here
+under the GPL-3.0 license included in [`LICENSE`](./LICENSE). The file matches the
+upstream repository at commit
 [`bcd76fa`](https://github.com/irusanov/ZenStates-Core/tree/bcd76fa6f03ea4fde8dd5f3e0e8b98944567a076).
