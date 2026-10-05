@@ -4,7 +4,8 @@
 
 .DESCRIPTION
     Creates the task "SakuFix04-0.4GHz" which runs Apply-Fix04-AtBoot.ps1 at startup as
-    SYSTEM with the highest privileges, and writes to C:\ProgramData\SakuFix04\fix04.log.
+    SYSTEM with the highest privileges and again after Windows resumes from sleep or
+    hibernation. It writes to C:\ProgramData\SakuFix04\fix04.log.
 
     Must run elevated. Use -AsUser if SYSTEM turns out not to be allowed to open the
     PawnIO device on this machine: that switches the task to "at logon" for the current
@@ -90,7 +91,8 @@ switch ($action) {
 
         $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
             -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
-            -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+            -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+            -MultipleInstances IgnoreNew
 
         if ($AsUser) {
             $userId    = '{0}\{1}' -f $env:USERDOMAIN, $env:USERNAME
@@ -108,7 +110,29 @@ switch ($action) {
             -Principal $principal -Settings $settings -Force `
             -Description 'Applies the Saku Overclock 0,4 GHz workaround (AGESA AcBtc) through PawnIO.' | Out-Null
 
-        Write-Host ('Task "{0}" registered ({1}).' -f $TaskName, $when)
+        $taskXml = [xml](Export-ScheduledTask -TaskName $TaskName)
+        $namespace = $taskXml.DocumentElement.NamespaceURI
+        $triggers = $taskXml.Task.Triggers
+        foreach ($existingTrigger in @($taskXml.SelectNodes("//*[local-name()='EventTrigger']"))) {
+            [void]$existingTrigger.ParentNode.RemoveChild($existingTrigger)
+        }
+
+        $subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1]]</Select></Query></QueryList>'
+        $resumeTrigger = $taskXml.CreateElement('EventTrigger', $namespace)
+        $enabledElement = $taskXml.CreateElement('Enabled', $namespace)
+        $enabledElement.InnerText = 'true'
+        [void]$resumeTrigger.AppendChild($enabledElement)
+        $subscriptionElement = $taskXml.CreateElement('Subscription', $namespace)
+        $subscriptionElement.InnerText = $subscription
+        [void]$resumeTrigger.AppendChild($subscriptionElement)
+        $delayElement = $taskXml.CreateElement('Delay', $namespace)
+        $delayElement.InnerText = 'PT10S'
+        [void]$resumeTrigger.AppendChild($delayElement)
+        [void]$triggers.AppendChild($resumeTrigger)
+
+        Register-ScheduledTask -TaskName $TaskName -Xml $taskXml.OuterXml -Force | Out-Null
+
+        Write-Host ('Task "{0}" registered ({1}, and after resume from sleep/hibernation).' -f $TaskName, $when)
         Write-Host ('Log: {0}' -f $logPath)
 
         if ($RunNow) {

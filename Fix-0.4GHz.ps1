@@ -440,10 +440,12 @@ try {
     }
     $platform = if ($script:Platforms.ContainsKey($codeName)) { $script:Platforms[$codeName] } else { $null }
 
-    $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
     Write-Host ''
     Write-Host 'CPU'
-    Write-Host ('  {0}' -f $cpu.Name)
+    if ($Action -eq 'Status') {
+        $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+        Write-Host ('  {0}' -f $cpu.Name)
+    }
     Write-Host ('  codename      : {0} (module id {1})' -f $codeName, $index)
 
     if ($null -eq $platform) {

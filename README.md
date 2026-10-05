@@ -93,8 +93,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-Fix04Startup.p
 ```
 
 The `SakuFix04-0.4GHz` task runs `Apply-Fix04-AtBoot.ps1` at startup as `SYSTEM` with
-elevated privileges. It waits for the hardware to become ready and then unconditionally
-applies the workaround on every startup.
+elevated privileges, and also runs again when Windows resumes from sleep or hibernation.
+It applies the workaround as soon as the SMU is ready and retries only if an attempt
+fails. The startup task runs before user sign-in; it does not wait for the user to log in.
 
 Check the task status and view the latest log lines:
 

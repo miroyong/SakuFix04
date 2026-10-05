@@ -1,11 +1,10 @@
 <#
 .SYNOPSIS
-    Boot entry point that applies the Saku Overclock "Fix 0,4 GHz" workaround.
+    Startup and resume entry point for the Saku Overclock "Fix 0,4 GHz" workaround.
 
 .DESCRIPTION
-    Waits until the PawnIO driver, the RyzenSMU module and the SMU mailbox are usable,
-    then calls Fix-0.4GHz.ps1 -Action Enable -Force. Every step is appended to
-    C:\ProgramData\SakuFix04\fix04.log.
+    Calls Fix-0.4GHz.ps1 -Action Enable -Force and retries if the driver or SMU is not
+    ready. Every attempt is appended to C:\ProgramData\SakuFix04\fix04.log.
 
     Meant to be run by the scheduled task "SakuFix04-0.4GHz" (at startup, as SYSTEM) -
     see Install-Fix04Startup.ps1.
@@ -56,17 +55,6 @@ function Write-OutputBlock {
     }
 }
 
-function Get-EffectiveClock {
-    try {
-        $nominal = (Get-CimInstance Win32_Processor -ErrorAction Stop | Select-Object -First 1).MaxClockSpeed
-        $perf = (Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -ErrorAction Stop |
-                 Where-Object { $_.Name -eq '_Total' }).PercentProcessorPerformance
-        if ($perf) { return ('{0:N0} MHz ({1} % of nominal)' -f ($nominal * $perf / 100), $perf) }
-    }
-    catch { }
-    return 'unknown'
-}
-
 if (-not (Test-Path -LiteralPath $fixScript)) {
     Write-Log ('ERROR: {0} not found' -f $fixScript)
     exit 1
@@ -74,46 +62,33 @@ if (-not (Test-Path -LiteralPath $fixScript)) {
 
 Write-Log ('--- {0} requested (user {1}) ---' -f $mode.ToUpperInvariant(), $env:USERNAME)
 
-# Readiness: the Status mode is read-only and performs the same hardware checks
-# (PawnIO device, RyzenSMU module, SMU version, mailbox) the real run needs.
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-$probeOutput = $null
+$attempt = 0
 while ((Get-Date) -lt $deadline) {
+    $attempt++
+    $output = ''
     try {
-        $probeOutput = & $fixScript -Action Status *>&1 | Out-String
-        break
+        $output = & $fixScript -Action $mode -Force *>&1 | Out-String
     }
     catch {
-        Write-Log ('  hardware not ready yet: {0}' -f $_.Exception.Message)
-        Start-Sleep -Seconds $RetrySeconds
+        $output = $_.Exception.Message
     }
+
+    Write-OutputBlock -Text $output
+
+    if ($output -match '->\s*OK') {
+        Write-Log ('SUCCESS: workaround {0}d on attempt {1}' -f $mode.ToLowerInvariant(), $attempt)
+        exit 0
+    }
+
+    if ($output -match 'This codename is not covered|no 0\.4 GHz workaround|PawnIO is not installed|RyzenSMU PawnIO module not found') {
+        Write-Log 'FAILED: a required driver/module is missing or this CPU is not supported; not retrying.'
+        exit 1
+    }
+
+    Write-Log ('  SMU/driver not ready (attempt {0}); retrying in {1} s.' -f $attempt, $RetrySeconds)
+    Start-Sleep -Seconds $RetrySeconds
 }
 
-if (-not $probeOutput) {
-    Write-Log ('ERROR: PawnIO/SMU did not become ready within {0} s' -f $TimeoutSeconds)
-    exit 1
-}
-
-Write-Log '  hardware ready'
-Write-OutputBlock -Text $probeOutput
-Write-Log ('  clock before: {0}' -f (Get-EffectiveClock))
-
-try {
-    $output = & $fixScript -Action $mode -Force *>&1 | Out-String
-}
-catch {
-    Write-Log ('ERROR: {0}' -f $_.Exception.Message)
-    exit 1
-}
-
-Write-OutputBlock -Text $output
-
-if ($output -match '->\s*OK') {
-    Start-Sleep -Seconds 2
-    Write-Log ('  clock after : {0}' -f (Get-EffectiveClock))
-    Write-Log ('SUCCESS: workaround {0}d' -f $mode.ToLowerInvariant())
-    exit 0
-}
-
-Write-Log ('FAILED: the SMU did not answer OK to the {0} request' -f $mode.ToLowerInvariant())
+Write-Log ('ERROR: PawnIO/SMU did not become ready within {0} s; last attempt {1}.' -f $TimeoutSeconds, $attempt)
 exit 1
