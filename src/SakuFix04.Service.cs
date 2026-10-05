@@ -416,8 +416,14 @@ internal static class Fix04
             return ApplyResult.Fatal;
         }
 
+        Mutex mutex = null;
         try
         {
+            // The PowerShell scripts serialize SMU access with this global mutex (the same
+            // convention ZenStates and Saku use), so a service resume and a scheduled-task
+            // run cannot interleave mailbox writes.
+            mutex = AcquirePciMutex();
+
             byte[] module = File.ReadAllBytes(ModulePath);
             using (PawnIoDevice device = new PawnIoDevice())
             {
@@ -449,6 +455,41 @@ internal static class Fix04
         {
             Program.Log("[" + origin + "] " + exception.Message);
             return ApplyResult.Retry;
+        }
+        finally
+        {
+            if (mutex != null)
+            {
+                try
+                {
+                    mutex.ReleaseMutex();
+                }
+                catch (ApplicationException)
+                {
+                }
+                mutex.Dispose();
+            }
+        }
+    }
+
+    private static Mutex AcquirePciMutex()
+    {
+        try
+        {
+            Mutex mutex = new Mutex(false, @"Global\Access_PCI");
+            if (mutex.WaitOne(5000, false))
+            {
+                return mutex;
+            }
+
+            Program.Log("[interop] another tool is holding \"Global\\Access_PCI\"; proceeding without it.");
+            mutex.Dispose();
+            return null;
+        }
+        catch (Exception exception)
+        {
+            Program.Log("[interop] could not take the \"Global\\Access_PCI\" mutex: " + exception.Message);
+            return null;
         }
     }
 
