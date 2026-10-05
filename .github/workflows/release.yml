@@ -15,6 +15,10 @@ jobs:
       - name: Check out release source
         uses: actions/checkout@v4
 
+      - name: Build the service
+        shell: pwsh
+        run: ./Build-Service.ps1
+
       - name: Build ZIP and publish release
         shell: pwsh
         env:
@@ -29,6 +33,7 @@ jobs:
             'Apply-Fix04-AtBoot.ps1'
             'Install-Fix04Startup.ps1'
             'Install-SakuFix04.ps1'
+            'SakuFix04.Service.exe'
             'RyzenSMU.bin'
             'README.md'
             'LICENSE'
