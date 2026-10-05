@@ -99,9 +99,9 @@ only if an attempt fails. The startup run happens before user sign-in; the logon
 a backstop in case the hardware was not ready yet.
 
 The compiled PawnIO interop assembly is cached under `C:\ProgramData\SakuFix04` and
-reused by later runs. Compiling it takes a few seconds on an idle CPU but about a minute
-while the processor is stuck at 0.4 GHz, so the cache removes that cost from every boot
-and resume.
+reused by later runs. Compiling it costs a couple of seconds on an idle CPU and several
+times more while the processor is stuck at 0.4 GHz, so the cache removes that cost from
+every boot and resume.
 
 Check the task status and view the latest log lines:
 

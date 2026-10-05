@@ -67,9 +67,9 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 # PawnIO interop - same protocol as ZenStates.Core.PawnIo.PawnIo
 # ---------------------------------------------------------------------------
-# Compiling this C# takes a few seconds on an idle CPU, but about a minute while the
-# processor is stuck at 0.4 GHz - which is exactly when it is needed. The compiled
-# assembly is cached and reused on the following runs.
+# Compiling this C# costs a couple of seconds on an idle CPU, and several times more
+# while the processor is stuck at 0.4 GHz - which is exactly when it is needed. The
+# compiled assembly is therefore cached and reused on the following runs.
 $interopSource = @'
 using System;
 using System.Runtime.InteropServices;
