@@ -52,6 +52,9 @@ if ($Uninstall) {
         Remove-Item -LiteralPath $installPath -Recurse -Force
     }
 
+    Get-ChildItem -LiteralPath (Join-Path $env:ProgramData 'SakuFix04') -Filter 'PawnIoInterop-*.dll' -ErrorAction SilentlyContinue |
+        Remove-Item -Force -ErrorAction SilentlyContinue
+
     Write-Host 'SakuFix04 uninstalled. The diagnostic log in ProgramData was left in place.'
     exit 0
 }

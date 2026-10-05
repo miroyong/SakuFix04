@@ -67,8 +67,10 @@ $ErrorActionPreference = 'Stop'
 # ---------------------------------------------------------------------------
 # PawnIO interop - same protocol as ZenStates.Core.PawnIo.PawnIo
 # ---------------------------------------------------------------------------
-if (-not ('PawnIoDevice' -as [type])) {
-    Add-Type -Language CSharp -TypeDefinition @'
+# Compiling this C# takes a few seconds on an idle CPU, but about a minute while the
+# processor is stuck at 0.4 GHz - which is exactly when it is needed. The compiled
+# assembly is cached and reused on the following runs.
+$interopSource = @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -231,6 +233,50 @@ public sealed class PawnIoDevice : IDisposable
     }
 }
 '@
+
+function Add-PawnIoInteropType {
+    param([string]$Source)
+
+    $cachePath = $null
+    try {
+        $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash(
+            [Text.Encoding]::UTF8.GetBytes($Source))).Replace('-', '').Substring(0, 16)
+        $cacheDirectory = Join-Path $env:ProgramData 'SakuFix04'
+        if (-not (Test-Path -LiteralPath $cacheDirectory)) {
+            New-Item -ItemType Directory -Path $cacheDirectory -Force | Out-Null
+        }
+        $cachePath = Join-Path $cacheDirectory ('PawnIoInterop-' + $hash + '.dll')
+    }
+    catch {
+        Write-Verbose ('Interop cache is not usable: ' + $_.Exception.Message)
+    }
+
+    if ($cachePath -and (Test-Path -LiteralPath $cachePath)) {
+        try {
+            Add-Type -Path $cachePath
+            return
+        }
+        catch {
+            Remove-Item -LiteralPath $cachePath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if ($cachePath) {
+        try {
+            Add-Type -Language CSharp -TypeDefinition $Source -OutputAssembly $cachePath
+            Add-Type -Path $cachePath
+            return
+        }
+        catch {
+            Write-Verbose ('Interop cache could not be written: ' + $_.Exception.Message)
+        }
+    }
+
+    Add-Type -Language CSharp -TypeDefinition $Source
+}
+
+if (-not ('PawnIoDevice' -as [type])) {
+    Add-PawnIoInteropType -Source $interopSource
 }
 
 # ---------------------------------------------------------------------------

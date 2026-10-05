@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    Registers the scheduled task that applies the Saku Overclock 0,4 GHz fix at startup.
+    Registers the scheduled task that applies the Saku Overclock 0,4 GHz fix at startup,
+    at logon and after resuming from sleep or hibernation.
 
 .DESCRIPTION
-    Creates the task "SakuFix04-0.4GHz" which runs Apply-Fix04-AtBoot.ps1 at startup as
-    SYSTEM with the highest privileges and again after Windows resumes from sleep or
-    hibernation. It writes to C:\ProgramData\SakuFix04\fix04.log.
+    Creates the task "SakuFix04-0.4GHz" which runs Apply-Fix04-AtBoot.ps1 as SYSTEM with
+    the highest privileges and writes to C:\ProgramData\SakuFix04\fix04.log.
 
     Must run elevated. Use -AsUser if SYSTEM turns out not to be allowed to open the
     PawnIO device on this machine: that switches the task to "at logon" for the current
@@ -96,17 +96,19 @@ switch ($action) {
 
         if ($AsUser) {
             $userId    = '{0}\{1}' -f $env:USERDOMAIN, $env:USERNAME
-            $trigger   = New-ScheduledTaskTrigger -AtLogOn -User $userId
+            $triggers  = @(New-ScheduledTaskTrigger -AtLogOn -User $userId)
             $principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Highest
             $when      = 'at logon, highest privileges'
         }
         else {
-            $trigger   = New-ScheduledTaskTrigger -AtStartup
+            # The logon trigger is a backstop: if the startup run was too early or the
+            # hardware was not ready, the fix is applied while the user signs in.
+            $triggers  = @((New-ScheduledTaskTrigger -AtStartup), (New-ScheduledTaskTrigger -AtLogOn))
             $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-            $when      = 'at startup, as SYSTEM'
+            $when      = 'at startup and at logon, as SYSTEM'
         }
 
-        Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $trigger `
+        Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $triggers `
             -Principal $principal -Settings $settings -Force `
             -Description 'Applies the Saku Overclock 0,4 GHz workaround (AGESA AcBtc) through PawnIO.' | Out-Null
 
@@ -117,7 +119,9 @@ switch ($action) {
             [void]$existingTrigger.ParentNode.RemoveChild($existingTrigger)
         }
 
-        $subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1]]</Select></Query></QueryList>'
+        # Event 107 is written as soon as the system resumes from sleep, event 1 when it
+        # returns from any low power state (including hibernation).
+        $subscription = '<QueryList><Query Id="0" Path="System"><Select Path="System">*[System[(Provider[@Name=''Microsoft-Windows-Kernel-Power''] and EventID=107) or (Provider[@Name=''Microsoft-Windows-Power-Troubleshooter''] and EventID=1)]]</Select></Query></QueryList>'
         $resumeTrigger = $taskXml.CreateElement('EventTrigger', $namespace)
         $enabledElement = $taskXml.CreateElement('Enabled', $namespace)
         $enabledElement.InnerText = 'true'
@@ -132,7 +136,7 @@ switch ($action) {
 
         Register-ScheduledTask -TaskName $TaskName -Xml $taskXml.OuterXml -Force | Out-Null
 
-        Write-Host ('Task "{0}" registered ({1}, and after resume from sleep/hibernation).' -f $TaskName, $when)
+        Write-Host ('Task "{0}" registered ({1}; again at logon and after resume from sleep/hibernation).' -f $TaskName, $when)
         Write-Host ('Log: {0}' -f $logPath)
 
         if ($RunNow) {

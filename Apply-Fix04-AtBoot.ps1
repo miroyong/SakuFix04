@@ -16,7 +16,7 @@
     How long to keep waiting for the hardware to become ready (default 300 s).
 
 .PARAMETER RetrySeconds
-    Delay between readiness attempts (default 5 s).
+    Delay between attempts (default 2 s).
 
 .PARAMETER Disable
     Undo the workaround instead of applying it.
@@ -25,7 +25,7 @@
 param(
     [int]$TimeoutSeconds = 300,
 
-    [int]$RetrySeconds = 5,
+    [int]$RetrySeconds = 2,
 
     [switch]$Disable
 )
@@ -60,7 +60,9 @@ if (-not (Test-Path -LiteralPath $fixScript)) {
     exit 1
 }
 
+try { $processStart = [Diagnostics.Process]::GetCurrentProcess().StartTime } catch { $processStart = $null }
 Write-Log ('--- {0} requested (user {1}) ---' -f $mode.ToUpperInvariant(), $env:USERNAME)
+if ($processStart) { Write-Log ('  process started: {0:HH:mm:ss}' -f $processStart) }
 
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 $attempt = 0
@@ -68,7 +70,10 @@ while ((Get-Date) -lt $deadline) {
     $attempt++
     $output = ''
     try {
-        $output = & $fixScript -Action $mode -Force *>&1 | Out-String
+        # Dot-sourced on purpose: spawning a second PowerShell process costs many seconds
+        # while the processor is stuck at 0.4 GHz. Fix-0.4GHz.ps1 must therefore return
+        # (or throw) instead of calling exit.
+        $output = . $fixScript -Action $mode -Force *>&1 | Out-String
     }
     catch {
         $output = $_.Exception.Message
